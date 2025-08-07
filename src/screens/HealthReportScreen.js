@@ -3,8 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Scr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import LocalLLMService from '../services/LocalLLMService';
 
-// Using the same Gemini API Key as the symptom checker
+// Fallback Gemini API Key for when local LLM is unavailable
 const GEMINI_API_KEY = 'AIzaSyDuFWJ7LcUtsoOZfab5YcCT_7yciJnHiSs';
 
 const HealthReportScreen = () => {
@@ -14,6 +15,8 @@ const HealthReportScreen = () => {
   const [healthReport, setHealthReport] = useState('');
   const [loading, setLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
+  const [llmService] = useState(new LocalLLMService());
+  const [usingLocalLLM, setUsingLocalLLM] = useState(true);
 
   useEffect(() => {
     loadPetProfile();
@@ -31,7 +34,7 @@ const HealthReportScreen = () => {
     }
   };
 
-  const generateHealthReport = async () => {
+  const generateHealthReport = async (reportType = 'comprehensive') => {
     if (!petProfile) {
       Alert.alert(t('noProfileAlert'), t('noProfileMessage'));
       return;
@@ -42,6 +45,32 @@ const HealthReportScreen = () => {
     setReportGenerated(false);
 
     try {
+      let reportData;
+      
+      // Try local LLM first
+      if (usingLocalLLM) {
+        try {
+          const isConnected = await llmService.testConnection();
+          if (isConnected) {
+            console.log('Using local LLM for health report generation...');
+            const currentLanguage = t('currentLanguage') || 'en';
+            reportData = await llmService.generateHealthReport(petProfile, currentLanguage, reportType);
+            setHealthReport(reportData.fullReport);
+            setReportGenerated(true);
+            Alert.alert('🖥️ ' + t('reportGenerated'), 'Generated using local LLM');
+            return;
+          } else {
+            console.log('Local LLM not available, falling back to Gemini...');
+            setUsingLocalLLM(false);
+          }
+        } catch (localError) {
+          console.log('Local LLM failed, falling back to Gemini:', localError.message);
+          setUsingLocalLLM(false);
+        }
+      }
+
+      // Fallback to Gemini API
+      console.log('Using Gemini API for health report generation...');
       const genderText = petProfile.gender === 'male' ? 'Male' : petProfile.gender === 'female' ? 'Female' : 'Unknown gender';
       const prompt = `Generate a comprehensive health report for a pet with the following information:
       - Name: ${petProfile.name}
@@ -83,7 +112,7 @@ const HealthReportScreen = () => {
       if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
         setHealthReport(data.candidates[0].content.parts[0].text);
         setReportGenerated(true);
-        Alert.alert(t('reportGenerated'), t('reportGenerated'));
+        Alert.alert('☁️ ' + t('reportGenerated'), 'Generated using cloud LLM');
       } else {
         setHealthReport('No response from AI.');
       }
@@ -161,10 +190,53 @@ const HealthReportScreen = () => {
         </View>
       )}
 
+      {/* LLM Status Indicator */}
+      <View style={styles.llmStatusContainer}>
+        <Text style={styles.llmStatusText}>
+          {usingLocalLLM ? '🖥️ Using Local LLM' : '☁️ Using Cloud LLM'}
+        </Text>
+        <TouchableOpacity 
+          style={styles.switchLLMButton}
+          onPress={() => setUsingLocalLLM(!usingLocalLLM)}
+        >
+          <Text style={styles.switchLLMText}>
+            Switch to {usingLocalLLM ? 'Cloud' : 'Local'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Report Type Selection */}
+      <View style={styles.reportTypeContainer}>
+        <Text style={styles.reportTypeTitle}>📋 Report Type:</Text>
+        <View style={styles.reportTypeButtons}>
+          <TouchableOpacity 
+            style={styles.reportTypeButton}
+            onPress={() => generateHealthReport('basic')}
+            disabled={loading || !petProfile}
+          >
+            <Text style={styles.reportTypeButtonText}>🔸 Basic</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.reportTypeButton}
+            onPress={() => generateHealthReport('comprehensive')}
+            disabled={loading || !petProfile}
+          >
+            <Text style={styles.reportTypeButtonText}>📊 Full Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.reportTypeButton}
+            onPress={() => generateHealthReport('detailed')}
+            disabled={loading || !petProfile}
+          >
+            <Text style={styles.reportTypeButtonText}>📝 Detailed</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.actionContainer}>
         <TouchableOpacity 
           style={[styles.generateButton, loading && styles.disabledButton]} 
-          onPress={generateHealthReport} 
+          onPress={() => generateHealthReport('comprehensive')} 
           disabled={loading || !petProfile}
         >
           {loading ? (
@@ -378,6 +450,72 @@ const createStyles = (colors) => StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  // New styles for LLM selection and report types
+  llmStatusContainer: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  llmStatusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  switchLLMButton: {
+    backgroundColor: colors.secondary,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  switchLLMText: {
+    fontSize: 12,
+    color: colors.surface,
+    fontWeight: '500',
+  },
+  reportTypeContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  reportTypeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  reportTypeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  reportTypeButton: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minWidth: 80,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  reportTypeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
   },
 });
 

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(eas build:configure)",
-      "Bash(npx expo export:*)"
+      "Bash(npx expo export:*)",
+      "Bash(npx expo publish:*)"
     ],
     "deny": []
   }
