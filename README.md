@@ -1,97 +1,194 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 🐾 Pet Care App
 
-# Getting Started
+A beautiful and intuitive pet care application built with React Native and Expo, featuring AI-powered health assistance and multilingual support.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## ✨ Features
 
-## Step 1: Start Metro
+### 🌍 Multi-Language Support
+- **English** 🇺🇸
+- **Spanish** 🇪🇸  
+- **Chinese** 🇨🇳
+- Dynamic language switching with persistent storage
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 🎨 Customizable Themes
+- **6 Beautiful Color Themes**: Pink, Blue, Purple, Green, Orange, Red
+- Live theme preview and switching
+- All UI elements adapt to selected theme
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 🐕 Pet Profile Management
+- Complete pet information storage
+- Name, breed, age, and gender tracking
+- Persistent data storage with AsyncStorage
+- Update and manage multiple pet profiles
 
-```sh
-# Using npm
-npm start
+### 🩺 AI-Powered Health Assistant
+- **Symptom Checker**: Describe symptoms and get AI guidance
+- **Health Reports**: Comprehensive AI-generated health assessments
+- **First Aid Guide**: Emergency procedures for common pet emergencies
+- Powered by Google Gemini API
 
-# OR using Yarn
-yarn start
+### 🚑 Emergency First Aid
+- Choking, bleeding, heatstroke procedures
+- Poisoning and fracture guidance
+- Emergency contact numbers
+- Step-by-step instructions
+
+## 📱 Screenshots
+
+*Beautiful, colorful interface with cute emojis and user-friendly design*
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v16 or newer)
+- npm or yarn
+- Expo Go app on your mobile device
+- Android Studio (for Android development)
+- Xcode (for iOS development, macOS only)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd Pet_google
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**
+   ```bash
+   npx expo start
+   ```
+
+4. **Run on your device**
+   - Install [Expo Go](https://expo.dev/client) on your phone
+   - Scan the QR code displayed in your terminal
+   - The app will load on your device!
+
+### Alternative Running Methods
+
+**Run on Android Emulator:**
+```bash
+npx expo start --android
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+**Run on iOS Simulator:**
+```bash
+npx expo start --ios
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+**Run on Web:**
+```bash
+npx expo start --web
 ```
 
-Then, and every time you update your native dependencies, run:
+## 🔧 Configuration
 
-```sh
-bundle exec pod install
+### API Setup
+The app uses Google Gemini API for AI features. You'll need to:
+
+1. Get a Gemini API key from [Google AI Studio](https://makersuite.google.com/)
+2. Replace the API key in:
+   - `src/screens/SymptomCheckerScreen.js`
+   - `src/screens/HealthReportScreen.js`
+
+**⚠️ Important**: For production apps, never hardcode API keys. Use environment variables or a backend service.
+
+## 🛠 Tech Stack
+
+- **React Native**: Cross-platform mobile development
+- **Expo**: Development platform and tools
+- **React Navigation**: Navigation between screens
+- **AsyncStorage**: Local data persistence
+- **Google Gemini API**: AI-powered health assistance
+- **Context API**: State management for themes and language
+
+## 📁 Project Structure
+
+```
+Pet_google/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── LanguageSelector.js
+│   │   └── ThemeSelector.js
+│   ├── context/            # React Context providers
+│   │   ├── LanguageContext.js
+│   │   └── ThemeContext.js
+│   ├── screens/            # App screens
+│   │   ├── PetProfileScreen.js
+│   │   ├── SymptomCheckerScreen.js
+│   │   └── HealthReportScreen.js
+│   └── utils/              # Utilities and constants
+│       ├── translations.js
+│       └── themes.js
+├── App.tsx                 # Main app component
+└── package.json           # Dependencies
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## 🌟 Key Features Explained
 
-```sh
-# Using npm
-npm run ios
+### Language System
+- Uses React Context for global language state
+- Translations stored in `src/utils/translations.js`
+- Persistent language selection with AsyncStorage
+- Easy to add new languages
 
-# OR using Yarn
-yarn ios
+### Theme System  
+- Dynamic color theming with React Context
+- 6 predefined color schemes
+- All components use theme-aware styling
+- Smooth color transitions
+
+### AI Health Assistant
+- Integration with Google Gemini API
+- Context-aware responses based on pet profiles
+- Gender-specific health recommendations
+- Professional yet friendly advice
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Metro bundler issues:**
+```bash
+npx expo start --clear
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+**Package version conflicts:**
+```bash
+npx expo install --fix
+```
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+**iOS build issues:**
+```bash
+cd ios && pod install && cd ..
+```
 
-## Step 3: Modify your app
+## 📞 Support
 
-Now that you have successfully run the app, let's make changes!
+If you encounter any issues or have questions:
+1. Check the troubleshooting section above
+2. Create an issue in this repository
+3. Contact the development team
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+---
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+**Made with ❤️ for pet lovers everywhere**
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+*This app was developed to help pet owners provide better care for their furry friends through technology and AI assistance.*
