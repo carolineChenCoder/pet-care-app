@@ -50,8 +50,8 @@ A beautiful and intuitive pet care application built with React Native and Expo,
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
-   cd Pet_google
+   git clone https://github.com/carolineChenCoder/pet-care-app.git
+   cd pet-care-app
    ```
 
 2. **Install dependencies**
