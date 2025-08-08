@@ -159,6 +159,21 @@ const HealthReportScreen = () => {
     }
   };
 
+  const testLocalLLMConnection = async () => {
+    try {
+      console.log('Starting manual connection test...');
+      const isConnected = await llmService.testConnection();
+      const models = await llmService.getAvailableModels();
+      
+      Alert.alert(
+        '🔍 Connection Test Results',
+        `Connection: ${isConnected ? '✅ Success' : '❌ Failed'}\nModels Available: ${models.length}\nOllama URL: http://localhost:11434\n\nCheck console for detailed logs.`
+      );
+    } catch (error) {
+      Alert.alert('🔍 Connection Test', `❌ Test failed: ${error.message}`);
+    }
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -202,6 +217,12 @@ const HealthReportScreen = () => {
           <Text style={styles.switchLLMText}>
             Switch to {usingLocalLLM ? 'Cloud' : 'Local'}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.testButton}
+          onPress={testLocalLLMConnection}
+        >
+          <Text style={styles.testButtonText}>🔍 Test</Text>
         </TouchableOpacity>
       </View>
 
@@ -476,6 +497,17 @@ const createStyles = (colors) => StyleSheet.create({
   },
   switchLLMText: {
     fontSize: 12,
+    color: colors.surface,
+    fontWeight: '500',
+  },
+  testButton: {
+    backgroundColor: colors.warning,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  testButtonText: {
+    fontSize: 10,
     color: colors.surface,
     fontWeight: '500',
   },

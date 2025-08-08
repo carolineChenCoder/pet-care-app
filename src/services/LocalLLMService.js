@@ -1,6 +1,12 @@
 // Local LLM Service for Health Report Generation
 class LocalLLMService {
   constructor() {
+    // Try different localhost variations for React Native compatibility
+    this.possibleURLs = [
+      'http://localhost:11434/api',
+      'http://127.0.0.1:11434/api',
+      'http://0.0.0.0:11434/api'
+    ];
     this.baseURL = 'http://localhost:11434/api';
     this.model = 'llama3.1:latest';
     this.timeout = 60000; // 60 seconds timeout
@@ -196,12 +202,46 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
 
   // Test connection to local LLM
   async testConnection() {
-    try {
-      const response = await fetch(`${this.baseURL}/tags`);
-      return response.ok;
-    } catch (error) {
-      return false;
+    // Try each possible URL
+    for (let i = 0; i < this.possibleURLs.length; i++) {
+      const testURL = this.possibleURLs[i];
+      console.log(`Testing connection to: ${testURL}`);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        const response = await fetch(`${testURL}/tags`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`Connection test response for ${testURL}:`, response.status, response.ok);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Available models:', data.models?.length || 0);
+          
+          if (data.models && data.models.length > 0) {
+            // Update baseURL to working URL
+            this.baseURL = testURL;
+            console.log(`✅ Successfully connected using: ${testURL}`);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error(`Connection failed for ${testURL}:`, error.message);
+        continue; // Try next URL
+      }
     }
+    
+    console.error('❌ All connection attempts failed');
+    return false;
   }
 
   // Get available models
