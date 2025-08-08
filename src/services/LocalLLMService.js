@@ -13,7 +13,7 @@ class LocalLLMService {
     this.timeout = 60000; // 60 seconds timeout
   }
 
-  async generateHealthReport(petProfile, language = 'en', reportType = 'comprehensive') {
+  async generateHealthReport(petProfile, language = 'en', reportType = 'comprehensive', abortSignal = null) {
     const prompt = this.createHealthReportPrompt(petProfile, language, reportType);
     
     try {
@@ -32,6 +32,7 @@ class LocalLLMService {
             max_tokens: 2000,
           }
         }),
+        signal: abortSignal, // Add cancellation support
         timeout: this.timeout,
       });
 
@@ -258,7 +259,7 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
   }
 
   // Generate symptom analysis using local LLM
-  async analyzeSymptoms(symptoms, petProfile, analysisResult, language = 'en') {
+  async analyzeSymptoms(symptoms, petProfile, analysisResult, language = 'en', abortSignal = null) {
     const prompt = this.createSymptomAnalysisPrompt(symptoms, petProfile, analysisResult, language);
     
     try {
@@ -278,6 +279,7 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
             stop: ['---', 'END_ANALYSIS'],
           }
         }),
+        signal: abortSignal, // Add cancellation support
         timeout: this.timeout,
       });
 

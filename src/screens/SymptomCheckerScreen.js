@@ -23,6 +23,7 @@ const SymptomCheckerScreen = () => {
   const [usingLocalLLM, setUsingLocalLLM] = useState(true);
   const [petProfile, setPetProfile] = useState(null);
   const [severityLevel, setSeverityLevel] = useState(null);
+  const [abortController, setAbortController] = useState(null);
 
   const emergencyItems = [
     {
@@ -116,6 +117,10 @@ const SymptomCheckerScreen = () => {
     setLlmResponse('');
     setSeverityLevel(null);
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       // Step 1: Analyze symptom severity using local analysis
       const analysisResult = analysisService.assessSymptomSeverity(symptom, petProfile);
@@ -134,7 +139,8 @@ const SymptomCheckerScreen = () => {
               symptom, 
               petProfile, 
               analysisResult, 
-              currentLanguage
+              currentLanguage,
+              controller.signal
             );
             
             setLlmResponse(analysisResponse.fullResponse);
@@ -182,6 +188,7 @@ const SymptomCheckerScreen = () => {
           body: JSON.stringify({
             contents: [{ parts: [{ text: enhancedPrompt }] }],
           }),
+          signal: controller.signal, // Add cancellation support
         }
       );
 
@@ -214,11 +221,27 @@ const SymptomCheckerScreen = () => {
       setSymptom('');
 
     } catch (error) {
-      console.error('Error in symptom analysis:', error);
-      Alert.alert(t('symptomsAlertError'), `${t('symptomsAlertErrorMessage')} ${error.message}`);
-      setLlmResponse('Error: Could not get a response from the AI.');
+      if (error.name === 'AbortError') {
+        console.log('Symptom analysis was cancelled by user');
+        // Don't show error alert for user cancellation
+      } else {
+        console.error('Error in symptom analysis:', error);
+        Alert.alert(t('symptomsAlertError'), `${t('symptomsAlertErrorMessage')} ${error.message}`);
+        setLlmResponse('Error: Could not get a response from the AI.');
+      }
     } finally {
       setLoading(false);
+      setAbortController(null);
+    }
+  };
+
+  const cancelAnalysis = () => {
+    if (abortController) {
+      console.log('🛑 Cancelling symptom analysis...');
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+      Alert.alert('🛑 Cancelled', 'Symptom analysis has been cancelled.');
     }
   };
 
@@ -272,11 +295,15 @@ const SymptomCheckerScreen = () => {
 
         <TouchableOpacity 
           style={[styles.submitButton, loading && styles.disabledButton]} 
-          onPress={handleSubmit} 
-          disabled={loading}
+          onPress={loading ? cancelAnalysis : handleSubmit} 
+          disabled={false}
         >
           {loading ? (
-            <ActivityIndicator size="small" color={colors.surface} />
+            <View style={styles.cancelContent}>
+              <ActivityIndicator size="small" color={colors.surface} />
+              <Text style={styles.submitButtonText}>Analyzing...</Text>
+              <Text style={styles.cancelHint}>🛑 Tap to Cancel</Text>
+            </View>
           ) : (
             <Text style={styles.submitButtonText}>{t('symptomsButton')}</Text>
           )}
@@ -443,6 +470,17 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.surface,
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  cancelContent: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cancelHint: {
+    color: colors.surface,
+    fontSize: 11,
+    fontWeight: '500',
+    opacity: 0.9,
   },
   loadingContainer: {
     alignItems: 'center',

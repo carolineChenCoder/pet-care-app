@@ -17,6 +17,7 @@ const HealthReportScreen = () => {
   const [reportGenerated, setReportGenerated] = useState(false);
   const [llmService] = useState(new LocalLLMService());
   const [usingLocalLLM, setUsingLocalLLM] = useState(true);
+  const [abortController, setAbortController] = useState(null);
 
   useEffect(() => {
     loadPetProfile();
@@ -44,6 +45,10 @@ const HealthReportScreen = () => {
     setHealthReport('');
     setReportGenerated(false);
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       let reportData;
       
@@ -54,7 +59,7 @@ const HealthReportScreen = () => {
           if (isConnected) {
             console.log('Using local LLM for health report generation...');
             const currentLanguage = t('currentLanguage') || 'en';
-            reportData = await llmService.generateHealthReport(petProfile, currentLanguage, reportType);
+            reportData = await llmService.generateHealthReport(petProfile, currentLanguage, reportType, controller.signal);
             setHealthReport(reportData.fullReport);
             setReportGenerated(true);
             Alert.alert('🖥️ ' + t('reportGenerated'), 'Generated using local LLM');
@@ -100,6 +105,7 @@ const HealthReportScreen = () => {
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
           }),
+          signal: controller.signal, // Add cancellation support
         }
       );
 
@@ -117,10 +123,16 @@ const HealthReportScreen = () => {
         setHealthReport('No response from AI.');
       }
     } catch (error) {
-      console.error('Error generating health report:', error);
-      Alert.alert(t('reportError'), `${t('reportErrorMessage')} ${error.message}`);
+      if (error.name === 'AbortError') {
+        console.log('Generation was cancelled by user');
+        // Don't show error alert for user cancellation
+      } else {
+        console.error('Error generating health report:', error);
+        Alert.alert(t('reportError'), `${t('reportErrorMessage')} ${error.message}`);
+      }
     } finally {
       setLoading(false);
+      setAbortController(null);
     }
   };
 
@@ -156,6 +168,16 @@ const HealthReportScreen = () => {
     } catch (error) {
       console.error('Error saving report:', error);
       Alert.alert('❌ Save Failed', 'Could not save the health report.');
+    }
+  };
+
+  const cancelGeneration = () => {
+    if (abortController) {
+      console.log('🛑 Cancelling LLM generation...');
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+      Alert.alert('🛑 Cancelled', 'Report generation has been cancelled.');
     }
   };
 
@@ -261,10 +283,14 @@ const HealthReportScreen = () => {
           disabled={loading || !petProfile}
         >
           {loading ? (
-            <View style={styles.loadingContent}>
+            <TouchableOpacity 
+              style={styles.cancelContent}
+              onPress={cancelGeneration}
+            >
               <ActivityIndicator size="small" color={colors.surface} />
               <Text style={styles.generateButtonText}>{t('generatingReport')}</Text>
-            </View>
+              <Text style={styles.cancelHint}>🛑 Tap to Cancel</Text>
+            </TouchableOpacity>
           ) : (
             <Text style={styles.generateButtonText}>{t('generateReportButton')}</Text>
           )}
@@ -395,6 +421,17 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  cancelContent: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cancelHint: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.9,
   },
   loadingContainer: {
     alignItems: 'center',
