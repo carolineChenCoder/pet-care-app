@@ -5,6 +5,7 @@ class LocalLLMService {
     this.possibleURLs = [
       'http://localhost:11434/api',
       'http://127.0.0.1:11434/api',
+      'http://192.168.199.204:11434/api', // Your machine's local IP
       'http://0.0.0.0:11434/api'
     ];
     this.baseURL = 'http://localhost:11434/api';

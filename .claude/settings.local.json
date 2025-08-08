@@ -4,7 +4,9 @@
       "Bash(npm install:*)",
       "Bash(eas build:configure)",
       "Bash(npx expo export:*)",
-      "Bash(npx expo publish:*)"
+      "Bash(npx expo publish:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
