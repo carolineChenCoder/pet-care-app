@@ -215,6 +215,225 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
       return [];
     }
   }
+
+  // Generate symptom analysis using local LLM
+  async analyzeSymptoms(symptoms, petProfile, analysisResult, language = 'en') {
+    const prompt = this.createSymptomAnalysisPrompt(symptoms, petProfile, analysisResult, language);
+    
+    try {
+      const response = await fetch(`${this.baseURL}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          prompt: prompt,
+          stream: false,
+          options: {
+            temperature: 0.7,
+            top_p: 0.9,
+            max_tokens: 1500,
+            stop: ['---', 'END_ANALYSIS'],
+          }
+        }),
+        timeout: this.timeout,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Local LLM Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return this.parseSymptomAnalysis(data.response, analysisResult);
+      
+    } catch (error) {
+      console.error('Local LLM symptom analysis failed:', error);
+      throw error;
+    }
+  }
+
+  createSymptomAnalysisPrompt(symptoms, petProfile, analysisResult, language) {
+    const languageInstructions = {
+      en: 'Respond in English',
+      es: 'Responde en español',
+      zh: 'Please respond in Chinese (中文)'
+    };
+
+    const contextualInfo = petProfile ? `
+**Pet Information:**
+- Name: ${petProfile.name}
+- Breed: ${petProfile.breed}
+- Age: ${petProfile.age} years old
+- Gender: ${this.getGenderText(petProfile.gender, language)}` : '';
+
+    const severityContext = {
+      emergency: '🚨 This appears to be an EMERGENCY situation requiring immediate veterinary care.',
+      high: '⚠️ This is a HIGH PRIORITY concern that needs prompt veterinary attention.',
+      moderate: '📋 This is a MODERATE concern that should be monitored and may need veterinary care.',
+      low: '✅ This appears to be a LOW PRIORITY concern for routine monitoring.'
+    };
+
+    const prompt = `You are an expert veterinary health advisor AI. ${languageInstructions[language] || languageInstructions.en}.
+
+${contextualInfo}
+
+**Reported Symptoms:** "${symptoms}"
+
+**Initial Severity Assessment:** ${analysisResult.level.toUpperCase()}
+${severityContext[analysisResult.level] || severityContext.low}
+
+**Your Task:** Provide a comprehensive yet concise analysis with specific, actionable recommendations.
+
+**Required Response Structure:**
+
+🔍 **SYMPTOM ASSESSMENT**
+- Confirm or adjust severity level
+- Explain your reasoning
+- Consider pet's age, breed, and gender
+
+📋 **IMMEDIATE ACTIONS** 
+- What to do RIGHT NOW
+- Step-by-step care instructions
+- What NOT to do
+
+👁️ **MONITORING GUIDANCE**
+- What specific signs to watch for
+- How often to check
+- When situation becomes more serious
+
+🏥 **VETERINARY CARE**
+- When to contact vet (be specific about timeframes)
+- What information to provide to vet
+- Emergency vs routine visit
+
+🛡️ **PREVENTION & CARE**
+- How to prevent similar issues
+- Long-term care considerations
+- ${petProfile ? `Specific advice for ${petProfile.breed} breed` : 'General breed considerations'}
+
+⚠️ **RED FLAGS**
+- Warning signs requiring IMMEDIATE emergency care
+- Signs situation is worsening
+
+**Important Guidelines:**
+- Use friendly, caring, but professional tone
+- Include specific timeframes (e.g., "within 2 hours", "monitor for 24-48 hours")
+- ${petProfile ? `Consider this is a ${petProfile.age}-year-old ${petProfile.breed}` : 'Consider general pet care principles'}
+- Add appropriate emojis for clarity
+- Always include veterinary disclaimer
+- Keep response under 500 words but comprehensive
+
+**Language:** ${languageInstructions[language] || languageInstructions.en}`;
+
+    return prompt;
+  }
+
+  parseSymptomAnalysis(rawResponse, analysisResult) {
+    // Parse the structured response
+    const sections = this.extractSymptomSections(rawResponse);
+    
+    // Extract any severity adjustments from the AI response
+    const aiSeverity = this.extractAISeverity(rawResponse);
+    
+    return {
+      fullResponse: rawResponse,
+      sections: sections,
+      originalSeverity: analysisResult.level,
+      aiAdjustedSeverity: aiSeverity || analysisResult.level,
+      confidence: analysisResult.confidence,
+      urgency: analysisResult.urgency,
+      generatedAt: new Date().toISOString(),
+      source: 'local_llm',
+      model: this.model
+    };
+  }
+
+  extractSymptomSections(text) {
+    const sections = {};
+    const sectionPatterns = {
+      assessment: /🔍.*?SYMPTOM ASSESSMENT.*?\n(.*?)(?=📋|$)/s,
+      actions: /📋.*?IMMEDIATE ACTIONS.*?\n(.*?)(?=👁️|$)/s,
+      monitoring: /👁️.*?MONITORING.*?\n(.*?)(?=🏥|$)/s,
+      veterinary: /🏥.*?VETERINARY.*?\n(.*?)(?=🛡️|$)/s,
+      prevention: /🛡️.*?PREVENTION.*?\n(.*?)(?=⚠️|$)/s,
+      redflags: /⚠️.*?RED FLAGS.*?\n(.*?)$/s
+    };
+
+    Object.entries(sectionPatterns).forEach(([key, pattern]) => {
+      const match = text.match(pattern);
+      sections[key] = match ? match[1].trim() : '';
+    });
+
+    return sections;
+  }
+
+  extractAISeverity(text) {
+    const severityPatterns = {
+      emergency: /emergency|immediate|urgent.*care|critical|serious/i,
+      high: /high.*priority|prompt.*attention|soon.*vet/i,
+      moderate: /moderate|monitor.*closely|routine.*care/i,
+      low: /low.*priority|minor|routine.*monitoring/i
+    };
+
+    // Check first few lines for severity indicators
+    const firstParagraph = text.split('\n').slice(0, 3).join(' ').toLowerCase();
+    
+    for (const [severity, pattern] of Object.entries(severityPatterns)) {
+      if (pattern.test(firstParagraph)) {
+        return severity;
+      }
+    }
+    
+    return null;
+  }
+
+  // Quick symptom analysis for simple cases
+  async quickSymptomCheck(symptoms, language = 'en') {
+    const prompt = `As a pet health assistant, provide brief advice for: "${symptoms}". 
+    ${language === 'es' ? 'Responde en español.' : language === 'zh' ? '请用中文回答。' : 'Respond in English.'}
+    
+    Keep response under 150 words. Include:
+    - Severity level (Low/Moderate/High/Emergency)
+    - 2-3 immediate care steps
+    - When to see vet
+    
+    Use caring tone with emojis.`;
+
+    try {
+      const response = await fetch(`${this.baseURL}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          prompt: prompt,
+          stream: false,
+          options: {
+            temperature: 0.6,
+            max_tokens: 200,
+          }
+        }),
+        timeout: 30000, // Shorter timeout for quick check
+      });
+
+      if (!response.ok) {
+        throw new Error(`Quick check failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        response: data.response,
+        source: 'local_llm_quick',
+        generatedAt: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('Quick symptom check failed:', error);
+      throw error;
+    }
+  }
 }
 
 export default LocalLLMService;
