@@ -23,7 +23,8 @@
       "Bash(npm run build:preview:*)",
       "WebFetch(domain:expo.dev)",
       "Bash(git init:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

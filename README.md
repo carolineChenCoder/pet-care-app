@@ -4,7 +4,7 @@
 
 ## 📱 Download APK
 
-**Latest Release:** [Download APK](https://github.com/yourusername/pet-care-assistant/releases/latest)
+**Latest Release:** [Download APK](https://github.com/carolineChenCoder/pet-care-app/releases/latest)
 
 > **For friends worldwide:** Click the link above to download the latest APK file for your Android device.
 
@@ -63,7 +63,7 @@ This app provides general pet health guidance and is not a substitute for profes
 
 Having issues or suggestions? We'd love to hear from you!
 
-- **Issues**: [Create an issue on GitHub](https://github.com/yourusername/pet-care-assistant/issues)
+- **Issues**: [Create an issue on GitHub](https://github.com/carolineChenCoder/pet-care-app/issues)
 
 ---
 
