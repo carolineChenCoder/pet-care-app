@@ -1,16 +1,19 @@
+import Environment from '../config/environment';
+
 // Local LLM Service for Health Report Generation
 class LocalLLMService {
   constructor() {
     // Try different localhost variations for React Native compatibility
+    // Prioritize the known working IP address first
     this.possibleURLs = [
+      'http://192.168.199.204:11434/api', // Your machine's local IP (prioritized)
       'http://localhost:11434/api',
       'http://127.0.0.1:11434/api',
-      'http://192.168.199.204:11434/api', // Your machine's local IP
       'http://0.0.0.0:11434/api'
     ];
-    this.baseURL = 'http://localhost:11434/api';
-    this.model = 'llama3.1:latest';
-    this.timeout = 60000; // 60 seconds timeout
+    this.baseURL = 'http://192.168.199.204:11434/api'; // Start with working IP
+    this.model = Environment.DEFAULT_LLM_MODEL;
+    this.timeout = Environment.LLM_TIMEOUT;
   }
 
   async generateHealthReport(petProfile, language = 'en', reportType = 'comprehensive', abortSignal = null) {
@@ -27,9 +30,10 @@ class LocalLLMService {
           prompt: prompt,
           stream: false,
           options: {
-            temperature: 0.7,
-            top_p: 0.9,
-            max_tokens: 2000,
+            temperature: 0.3,  // Reduced for faster generation
+            top_p: 0.8,        // Reduced for faster generation
+            max_tokens: 800,   // Reduced for shorter responses
+            num_predict: 800,  // Ollama-specific limit
           }
         }),
         signal: abortSignal, // Add cancellation support
@@ -204,45 +208,67 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
 
   // Test connection to local LLM
   async testConnection() {
+    console.log('🔍 Starting LocalLLM connection test...');
+    console.log(`📋 Testing ${this.possibleURLs.length} possible URLs`);
+    
     // Try each possible URL
     for (let i = 0; i < this.possibleURLs.length; i++) {
       const testURL = this.possibleURLs[i];
-      console.log(`Testing connection to: ${testURL}`);
+      console.log(`\n🔗 [${i + 1}/${this.possibleURLs.length}] Testing: ${testURL}`);
       
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        const timeoutId = setTimeout(() => {
+          console.log(`⏰ Timeout after 3s for ${testURL}`);
+          controller.abort();
+        }, 3000); // 3 second timeout
         
+        console.log(`📤 Sending GET request to ${testURL}/tags...`);
         const response = await fetch(`${testURL}/tags`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
           signal: controller.signal,
         });
         
         clearTimeout(timeoutId);
         
-        console.log(`Connection test response for ${testURL}:`, response.status, response.ok);
+        console.log(`📥 Response: ${response.status} ${response.statusText} (ok: ${response.ok})`);
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Available models:', data.models?.length || 0);
+          const modelCount = data.models?.length || 0;
+          console.log(`🤖 Available models: ${modelCount}`);
           
-          if (data.models && data.models.length > 0) {
+          if (modelCount > 0) {
+            console.log(`📝 Models found: ${data.models.map(m => m.name).join(', ')}`);
             // Update baseURL to working URL
             this.baseURL = testURL;
-            console.log(`✅ Successfully connected using: ${testURL}`);
+            console.log(`✅ SUCCESS! Using: ${testURL}`);
             return true;
+          } else {
+            console.log(`⚠️ No models available on ${testURL}`);
           }
+        } else {
+          console.log(`❌ HTTP error ${response.status} for ${testURL}`);
         }
       } catch (error) {
-        console.error(`Connection failed for ${testURL}:`, error.message);
+        if (error.name === 'AbortError') {
+          console.log(`⏰ Request timeout for ${testURL}`);
+        } else {
+          console.error(`❌ Connection failed for ${testURL}:`, error.name, error.message);
+        }
         continue; // Try next URL
       }
     }
     
-    console.error('❌ All connection attempts failed');
+    console.error('❌ ALL CONNECTION ATTEMPTS FAILED');
+    console.log('💡 Troubleshooting suggestions:');
+    console.log('   1. Check if Ollama is running: `ollama serve`');
+    console.log('   2. Check network permissions in iOS Simulator');
+    console.log('   3. Try restarting Metro bundler');
     return false;
   }
 
@@ -273,9 +299,10 @@ Please provide a well-structured health report in ${language === 'es' ? 'Spanish
           prompt: prompt,
           stream: false,
           options: {
-            temperature: 0.7,
-            top_p: 0.9,
-            max_tokens: 1500,
+            temperature: 0.3,  // Faster generation
+            top_p: 0.8,        // More focused responses
+            max_tokens: 600,   // Shorter responses
+            num_predict: 600,  // Ollama-specific
             stop: ['---', 'END_ANALYSIS'],
           }
         }),

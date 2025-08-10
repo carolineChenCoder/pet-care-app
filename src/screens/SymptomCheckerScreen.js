@@ -1,15 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import LocalLLMService from '../services/LocalLLMService';
 import SymptomAnalysisService from '../services/SymptomAnalysisService';
+import PetService from '../services/PetService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// IMPORTANT: Replace with your actual Gemini API Key
-// For production, never hardcode API keys. Use environment variables or a backend proxy.
-const GEMINI_API_KEY = 'AIzaSyDuFWJ7LcUtsoOZfab5YcCT_7yciJnHiSs'; 
+import Environment from '../config/environment'; 
 
 const SymptomCheckerScreen = () => {
   const { t } = useLanguage();
@@ -20,7 +19,7 @@ const SymptomCheckerScreen = () => {
   const [showFirstAid, setShowFirstAid] = useState(false);
   const [llmService] = useState(new LocalLLMService());
   const [analysisService] = useState(new SymptomAnalysisService());
-  const [usingLocalLLM, setUsingLocalLLM] = useState(true);
+  const [petService] = useState(new PetService());
   const [petProfile, setPetProfile] = useState(null);
   const [severityLevel, setSeverityLevel] = useState(null);
   const [abortController, setAbortController] = useState(null);
@@ -55,56 +54,83 @@ const SymptomCheckerScreen = () => {
 
   // Load pet profile for enhanced analysis
   useEffect(() => {
-    loadPetProfile();
+    loadCurrentPet();
   }, []);
 
-  const loadPetProfile = async () => {
+  // Reload current pet when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadCurrentPet();
+    }, [])
+  );
+
+  const loadCurrentPet = async () => {
     try {
-      const savedProfile = await AsyncStorage.getItem('petProfile');
-      if (savedProfile) {
-        setPetProfile(JSON.parse(savedProfile));
-      }
+      console.log('🔄 SymptomChecker: Loading current pet...');
+      // Migrate old data first
+      await petService.migrateOldData();
+      
+      // Load current pet
+      const currentPet = await petService.getCurrentPet();
+      console.log('🐾 SymptomChecker: Current pet loaded:', currentPet?.name || 'No pet');
+      setPetProfile(currentPet);
     } catch (error) {
-      console.error('Error loading pet profile:', error);
+      console.error('Error loading current pet:', error);
     }
   };
 
-  const callGeminiApi = async (prompt) => {
-    setLoading(true);
-    setLlmResponse('');
+  const createOfflineFallbackAnalysis = (symptoms, petProfile, severity) => {
+    const petInfo = petProfile ? `${petProfile.name} (${petProfile.breed}, ${petProfile.age}y)` : 'your pet';
+    const urgencyMap = {
+      emergency: '🚨 IMMEDIATE ACTION REQUIRED',
+      high: '⚠️ URGENT - Contact vet within 24 hours',
+      moderate: '📋 MONITOR CLOSELY - Vet visit recommended',
+      low: '✅ ROUTINE MONITORING - Continue observation'
+    };
+    
+    return `📱 **OFFLINE SYMPTOM ANALYSIS**
+Pet: ${petInfo}
+Symptoms: "${symptoms}"
+Severity: ${severity.toUpperCase()}
 
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      );
+${urgencyMap[severity] || urgencyMap.low}
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API Error: ${response.status} - ${errorData.error.message || 'Unknown error'}`);
-      }
+🔍 **BASIC ASSESSMENT**
+Based on the symptoms described, this appears to be a ${severity}-priority concern for ${petInfo}.
 
-      const data = await response.json();
-      if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
-        setLlmResponse(data.candidates[0].content.parts[0].text);
-      } else {
-        setLlmResponse('No response from LLM.');
-      }
-    } catch (error) {
-      console.error('Error calling Gemini API:', error);
-      Alert.alert(t('symptomsAlertError'), `${t('symptomsAlertErrorMessage')} ${error.message}`);
-      setLlmResponse('Error: Could not get a response from the AI.');
-    } finally {
-      setLoading(false);
-    }
+📋 **IMMEDIATE ACTIONS**
+${severity === 'emergency' ? 
+  '• Seek immediate veterinary emergency care\n• Do not wait - go to nearest vet clinic\n• Keep pet calm and comfortable during transport' :
+  severity === 'high' ?
+  '• Contact your veterinarian within 24 hours\n• Monitor symptoms closely\n• Keep pet comfortable and restrict activity if needed' :
+  severity === 'moderate' ?
+  '• Schedule veterinary appointment\n• Continue monitoring symptoms\n• Keep detailed notes of any changes' :
+  '• Continue routine monitoring\n• Note any changes in behavior\n• Maintain normal care routine'
+}
+
+👁️ **MONITORING GUIDANCE**
+• Watch for worsening symptoms
+• Monitor eating, drinking, and bathroom habits
+• Note any changes in activity level
+• Keep a symptom diary
+
+🏥 **VETERINARY CARE**
+${severity === 'emergency' ? 'Immediate emergency care required - do not delay' :
+  severity === 'high' ? 'Contact vet within 24 hours for prompt evaluation' :
+  'Schedule routine appointment for professional evaluation'
+}
+
+⚠️ **RED FLAGS - Seek immediate emergency care if:**
+• Difficulty breathing or rapid breathing
+• Loss of consciousness or collapse
+• Severe bleeding
+• Signs of extreme pain
+• Inability to urinate or defecate
+• Suspected poisoning
+
+**Note:** This is a basic offline analysis. For AI-powered detailed analysis, please ensure Ollama is running with qwen2:1.5b model.
+
+**Always consult your veterinarian for professional medical advice.**`;
   };
 
   const handleSubmit = async () => {
@@ -126,96 +152,60 @@ const SymptomCheckerScreen = () => {
       const analysisResult = analysisService.assessSymptomSeverity(symptom, petProfile);
       setSeverityLevel(analysisResult.level);
 
-      let response;
       const currentLanguage = t('currentLanguage') || 'en';
 
-      // Step 2: Try local LLM first, then fallback to cloud
-      if (usingLocalLLM) {
-        try {
-          const isConnected = await llmService.testConnection();
-          if (isConnected) {
-            console.log('Using local LLM for symptom analysis...');
-            const analysisResponse = await llmService.analyzeSymptoms(
-              symptom, 
-              petProfile, 
-              analysisResult, 
-              currentLanguage,
-              controller.signal
-            );
-            
-            setLlmResponse(analysisResponse.fullResponse);
-            
-            // Store analysis history
-            await analysisService.storeSymptomHistory(
-              symptom, 
-              analysisResult, 
-              analysisResponse.fullResponse, 
-              petProfile
-            );
+      // Step 2: Try local LLM first, then fallback to offline analysis
+      try {
+        const isConnected = await llmService.testConnection();
+        if (isConnected) {
+          console.log('Using local LLM for symptom analysis...');
+          const analysisResponse = await llmService.analyzeSymptoms(
+            symptom, 
+            petProfile, 
+            analysisResult, 
+            currentLanguage,
+            controller.signal
+          );
+          
+          setLlmResponse(analysisResponse.fullResponse);
+          
+          // Store analysis history
+          await analysisService.storeSymptomHistory(
+            symptom, 
+            analysisResult, 
+            analysisResponse.fullResponse, 
+            petProfile
+          );
 
-            Alert.alert(
-              '🖥️ ' + t('symptomsResponse'), 
-              `Analysis completed using local LLM\nSeverity: ${analysisResult.level.toUpperCase()}`
-            );
-            setSymptom('');
-            return;
-          } else {
-            console.log('Local LLM not available, falling back to Gemini...');
-            setUsingLocalLLM(false);
-          }
-        } catch (localError) {
-          console.log('Local LLM failed, falling back to Gemini:', localError.message);
-          setUsingLocalLLM(false);
+          Alert.alert(
+            '🖥️ ' + t('symptomsResponse'), 
+            `Analysis completed using local LLM\nSeverity: ${analysisResult.level.toUpperCase()}`
+          );
+          setSymptom('');
+          return;
+        } else {
+          console.log('Local LLM not available, using offline fallback...');
+          throw new Error('Local LLM not available');
         }
-      }
-
-      // Fallback to Gemini with enhanced prompt
-      console.log('Using Gemini API for symptom analysis...');
-      const enhancedPrompt = analysisService.generateEnhancedPrompt(
-        symptom, 
-        petProfile, 
-        analysisResult, 
-        currentLanguage
-      );
-      
-      const response2 = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: enhancedPrompt }] }],
-          }),
-          signal: controller.signal, // Add cancellation support
-        }
-      );
-
-      if (!response2.ok) {
-        const errorData = await response2.json();
-        throw new Error(`API Error: ${response2.status} - ${errorData.error.message || 'Unknown error'}`);
-      }
-
-      const data = await response2.json();
-      if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
-        const responseText = data.candidates[0].content.parts[0].text;
-        setLlmResponse(responseText);
+      } catch (localError) {
+        console.log('Local LLM failed, using offline analysis:', localError.message);
+        
+        // Fallback to offline analysis
+        const offlineAnalysis = createOfflineFallbackAnalysis(symptom, petProfile, analysisResult.level);
+        setLlmResponse(offlineAnalysis);
         
         // Store analysis history
         await analysisService.storeSymptomHistory(
           symptom, 
           analysisResult, 
-          responseText, 
+          offlineAnalysis, 
           petProfile
         );
 
         Alert.alert(
-          '☁️ ' + t('symptomsResponse'), 
-          `Analysis completed using cloud LLM\nSeverity: ${analysisResult.level.toUpperCase()}`
+          '📱 Offline Mode', 
+          `Analysis completed in offline mode\nSeverity: ${analysisResult.level.toUpperCase()}\n\nFor AI-powered analysis, ensure Ollama is running.`
         );
-      } else {
-        setLlmResponse('No response from AI.');
       }
 
       setSymptom('');
@@ -259,14 +249,8 @@ const SymptomCheckerScreen = () => {
       <View style={styles.statusContainer}>
         <View style={styles.llmStatusBadge}>
           <Text style={styles.llmStatusText}>
-            {usingLocalLLM ? '🖥️ Local LLM' : '☁️ Cloud LLM'}
+            🖥️ Local LLM Only
           </Text>
-          <TouchableOpacity 
-            style={styles.switchButton}
-            onPress={() => setUsingLocalLLM(!usingLocalLLM)}
-          >
-            <Text style={styles.switchButtonText}>Switch</Text>
-          </TouchableOpacity>
         </View>
         
         {petProfile && (

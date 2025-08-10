@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Share } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Share, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import LocalLLMService from '../services/LocalLLMService';
-
-// Fallback Gemini API Key for when local LLM is unavailable
-const GEMINI_API_KEY = 'AIzaSyDuFWJ7LcUtsoOZfab5YcCT_7yciJnHiSs';
+import PetService from '../services/PetService';
+import Environment from '../config/environment';
 
 const HealthReportScreen = () => {
   const { t } = useLanguage();
@@ -16,28 +16,58 @@ const HealthReportScreen = () => {
   const [loading, setLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
   const [llmService] = useState(new LocalLLMService());
+  const [petService] = useState(new PetService());
   const [usingLocalLLM, setUsingLocalLLM] = useState(true);
   const [abortController, setAbortController] = useState(null);
+  const [savedReports, setSavedReports] = useState([]);
 
   useEffect(() => {
-    loadPetProfile();
+    loadData();
   }, []);
 
-  const loadPetProfile = async () => {
+  // Reload data when screen comes into focus (when user navigates to this tab)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const loadData = async () => {
     try {
-      const savedProfile = await AsyncStorage.getItem('petProfile');
-      if (savedProfile) {
-        const profile = JSON.parse(savedProfile);
-        setPetProfile(profile);
+      console.log('🔄 HealthReport: Loading pet data...');
+      // Migrate old data first
+      await petService.migrateOldData();
+      
+      // Load current pet
+      const currentPet = await petService.getCurrentPet();
+      console.log('🐾 HealthReport: Current pet loaded:', currentPet?.name || 'No pet');
+      setPetProfile(currentPet);
+      
+      // Load saved reports for current pet
+      if (currentPet) {
+        const reports = await petService.getHealthReports(currentPet.id);
+        setSavedReports(reports);
+        console.log(`📊 HealthReport: Loaded ${reports.length} reports for ${currentPet.name}`);
+      } else {
+        setSavedReports([]);
       }
     } catch (error) {
-      console.error('Error loading pet profile:', error);
+      console.error('Error loading data:', error);
     }
+  };
+
+  const loadSavedReport = (report) => {
+    setHealthReport(report.report);
+    setReportGenerated(true);
+    Alert.alert(
+      '📄 Loaded Saved Report', 
+      `Generated: ${new Date(report.generatedAt).toLocaleDateString()}\nSource: ${report.source === 'local_llm' ? 'Local LLM' : 'Cloud LLM'}`
+    );
   };
 
   const generateHealthReport = async (reportType = 'comprehensive') => {
     if (!petProfile) {
-      Alert.alert(t('noProfileAlert'), t('noProfileMessage'));
+      Alert.alert('No Pet Selected', 'Please go to Pet Management to add or select a pet first.');
       return;
     }
 
@@ -52,75 +82,32 @@ const HealthReportScreen = () => {
     try {
       let reportData;
       
-      // Try local LLM first
-      if (usingLocalLLM) {
-        try {
-          const isConnected = await llmService.testConnection();
-          if (isConnected) {
-            console.log('Using local LLM for health report generation...');
-            const currentLanguage = t('currentLanguage') || 'en';
-            reportData = await llmService.generateHealthReport(petProfile, currentLanguage, reportType, controller.signal);
-            setHealthReport(reportData.fullReport);
-            setReportGenerated(true);
-            Alert.alert('🖥️ ' + t('reportGenerated'), 'Generated using local LLM');
-            return;
-          } else {
-            console.log('Local LLM not available, falling back to Gemini...');
-            setUsingLocalLLM(false);
-          }
-        } catch (localError) {
-          console.log('Local LLM failed, falling back to Gemini:', localError.message);
-          setUsingLocalLLM(false);
+      // Try local LLM
+      try {
+        const isConnected = await llmService.testConnection();
+        if (isConnected) {
+          console.log('Using local LLM for health report generation...');
+          const currentLanguage = t('currentLanguage') || 'en';
+          reportData = await llmService.generateHealthReport(petProfile, currentLanguage, reportType, controller.signal);
+          setHealthReport(reportData.fullReport);
+          setReportGenerated(true);
+          Alert.alert('🖥️ ' + t('reportGenerated'), 'Generated using local LLM');
+          return;
+        } else {
+          console.log('Local LLM not available');
+          throw new Error('Local LLM not available');
         }
-      }
-
-      // Fallback to Gemini API
-      console.log('Using Gemini API for health report generation...');
-      const genderText = petProfile.gender === 'male' ? 'Male' : petProfile.gender === 'female' ? 'Female' : 'Unknown gender';
-      const prompt = `Generate a comprehensive health report for a pet with the following information:
-      - Name: ${petProfile.name}
-      - Breed: ${petProfile.breed}
-      - Age: ${petProfile.age}
-      - Gender: ${genderText}
-      
-      Please provide:
-      1. General health assessment based on breed, age, and gender
-      2. Common health concerns for this breed (including gender-specific issues)
-      3. Recommended preventive care schedule (considering gender-specific needs)
-      4. Nutrition recommendations based on breed, age, and gender
-      5. Exercise requirements
-      6. Gender-specific health monitoring recommendations
-      7. Warning signs to watch for
-      8. Veterinary visit recommendations
-      
-      Make the report professional yet friendly, and include specific recommendations. Consider gender-specific health issues (like spaying/neutering considerations, reproductive health, etc.). Use emojis to make it engaging but keep it informative and helpful.`;
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-          signal: controller.signal, // Add cancellation support
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API Error: ${response.status} - ${errorData.error.message || 'Unknown error'}`);
-      }
-
-      const data = await response.json();
-      if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
-        setHealthReport(data.candidates[0].content.parts[0].text);
+      } catch (localError) {
+        console.log('Local LLM failed:', localError.message);
+        
+        // Show user-friendly message for no LLM available
+        const fallbackReport = createOfflineFallbackReport(petProfile, reportType);
+        setHealthReport(fallbackReport);
         setReportGenerated(true);
-        Alert.alert('☁️ ' + t('reportGenerated'), 'Generated using cloud LLM');
-      } else {
-        setHealthReport('No response from AI.');
+        Alert.alert(
+          '📱 Offline Mode', 
+          'Local LLM not available. Generated basic report based on breed information. For AI-powered reports, please ensure Ollama is running with qwen2:1.5b model.'
+        );
       }
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -151,20 +138,20 @@ const HealthReportScreen = () => {
   };
 
   const saveReport = async () => {
-    if (!healthReport) return;
+    if (!healthReport || !petProfile) return;
 
     try {
-      const reportData = {
-        petName: petProfile?.name,
-        petBreed: petProfile?.breed,
-        petAge: petProfile?.age,
-        petGender: petProfile?.gender,
+      await petService.saveHealthReport(petProfile.id, {
         report: healthReport,
-        generatedAt: new Date().toISOString(),
-      };
+        reportType: 'comprehensive',
+        source: usingLocalLLM ? 'local_llm' : 'cloud_llm'
+      });
       
-      await AsyncStorage.setItem('lastHealthReport', JSON.stringify(reportData));
-      Alert.alert('✅ Saved!', 'Health report has been saved successfully!');
+      // Reload saved reports
+      const reports = await petService.getHealthReports(petProfile.id);
+      setSavedReports(reports);
+      
+      Alert.alert('✅ Saved!', `Health report for ${petProfile.name} has been saved successfully!`);
     } catch (error) {
       console.error('Error saving report:', error);
       Alert.alert('❌ Save Failed', 'Could not save the health report.');
@@ -179,6 +166,106 @@ const HealthReportScreen = () => {
       setLoading(false);
       Alert.alert('🛑 Cancelled', 'Report generation has been cancelled.');
     }
+  };
+
+  const createOfflineFallbackReport = (petProfile, reportType = 'comprehensive') => {
+    const breedInfo = getBasicBreedInfo(petProfile.breed);
+    const ageGroup = getAgeGroup(petProfile.age);
+    
+    return `📱 **OFFLINE HEALTH REPORT**
+Generated: ${new Date().toLocaleDateString()}
+Pet: ${petProfile.name} (${petProfile.breed}, ${petProfile.age} years)
+
+🏥 **GENERAL HEALTH OVERVIEW**
+Based on breed and age information for ${ageGroup} ${petProfile.breed}s:
+${breedInfo.healthNotes}
+
+🍽️ **BASIC NUTRITION**
+- Feed high-quality pet food appropriate for ${ageGroup} pets
+- ${breedInfo.feedingTips}
+- Always provide fresh water
+
+🏃 **EXERCISE NEEDS**  
+${breedInfo.exerciseNeeds}
+
+🩺 **ROUTINE CARE**
+- Annual vet checkups (twice yearly for senior pets)
+- Keep vaccinations current
+- Regular dental care and grooming
+- ${breedInfo.specialCare}
+
+⚠️ **BREED-SPECIFIC MONITORING**
+Watch for: ${breedInfo.commonIssues}
+
+📅 **NEXT STEPS**
+- Schedule regular vet checkup if overdue
+- Monitor for any changes in behavior or appetite
+- Consider professional training if needed
+
+**Note:** This is a basic offline report. For AI-powered detailed analysis, please ensure Ollama is running with the qwen2:1.5b model.
+
+**Always consult your veterinarian for professional medical advice.**`;
+  };
+
+  const getBasicBreedInfo = (breed) => {
+    const breedLower = breed.toLowerCase();
+    
+    // Common breed information database
+    if (breedLower.includes('golden retriever') || breedLower.includes('retriever')) {
+      return {
+        healthNotes: 'Generally healthy, active dogs prone to hip dysplasia and heart conditions.',
+        feedingTips: '2-3 cups of quality food daily, split into meals.',
+        exerciseNeeds: 'Requires 60+ minutes of daily exercise including walks and play.',
+        specialCare: 'Regular grooming needed due to long coat.',
+        commonIssues: 'hip dysplasia, heart problems, eye conditions'
+      };
+    } else if (breedLower.includes('labrador') || breedLower.includes('lab')) {
+      return {
+        healthNotes: 'Energetic and generally healthy with tendency toward obesity.',
+        feedingTips: '2-3 cups daily, monitor weight carefully.',
+        exerciseNeeds: 'High energy - needs 60+ minutes daily exercise.',
+        specialCare: 'Weight management is crucial.',
+        commonIssues: 'obesity, hip dysplasia, eye problems'
+      };
+    } else if (breedLower.includes('bulldog')) {
+      return {
+        healthNotes: 'Brachycephalic breed with breathing considerations.',
+        feedingTips: '1-2 cups daily, avoid overfeeding.',
+        exerciseNeeds: 'Moderate exercise, avoid overexertion in heat.',
+        specialCare: 'Monitor breathing, keep cool in hot weather.',
+        commonIssues: 'breathing problems, hip dysplasia, skin issues'
+      };
+    } else if (breedLower.includes('poodle')) {
+      return {
+        healthNotes: 'Intelligent, active breed generally healthy with good longevity.',
+        feedingTips: '1-2 cups daily depending on size.',
+        exerciseNeeds: 'Moderate to high exercise needs, enjoys mental stimulation.',
+        specialCare: 'Regular professional grooming required.',
+        commonIssues: 'hip dysplasia, eye problems, epilepsy'
+      };
+    } else if (breedLower.includes('german shepherd')) {
+      return {
+        healthNotes: 'Large, active breed prone to joint issues.',
+        feedingTips: '3-4 cups daily, high-quality protein important.',
+        exerciseNeeds: 'High exercise needs - 2+ hours daily including mental stimulation.',
+        specialCare: 'Joint health supplements may be beneficial.',
+        commonIssues: 'hip/elbow dysplasia, bloat, degenerative myelopathy'
+      };
+    } else {
+      return {
+        healthNotes: 'Every breed has unique characteristics and health considerations.',
+        feedingTips: 'Follow feeding guidelines for your pet\'s size and age.',
+        exerciseNeeds: 'Most dogs need at least 30 minutes of daily exercise.',
+        specialCare: 'Research your specific breed\'s needs.',
+        commonIssues: 'varies by breed - consult breed-specific resources'
+      };
+    }
+  };
+
+  const getAgeGroup = (age) => {
+    if (age < 1) return 'puppy';
+    if (age < 7) return 'adult';
+    return 'senior';
   };
 
   const testLocalLLMConnection = async () => {
@@ -222,8 +309,8 @@ const HealthReportScreen = () => {
 
       {!petProfile && (
         <View style={styles.noProfileCard}>
-          <Text style={styles.noProfileText}>🐾 No pet profile found</Text>
-          <Text style={styles.noProfileSubtext}>{t('noProfileMessage')}</Text>
+          <Text style={styles.noProfileText}>🐾 No active pet selected</Text>
+          <Text style={styles.noProfileSubtext}>Go to Pet Management to add or select a pet</Text>
         </View>
       )}
 
@@ -275,6 +362,30 @@ const HealthReportScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Saved Reports Section */}
+      {savedReports.length > 0 && (
+        <View style={styles.savedReportContainer}>
+          <Text style={styles.savedReportTitle}>📄 Saved Reports ({savedReports.length})</Text>
+          <ScrollView style={styles.reportsList} horizontal showsHorizontalScrollIndicator={false}>
+            {savedReports.map((report, index) => (
+              <TouchableOpacity 
+                key={report.id}
+                style={styles.reportCard}
+                onPress={() => loadSavedReport(report)}
+              >
+                <Text style={styles.reportDate}>
+                  {new Date(report.generatedAt).toLocaleDateString()}
+                </Text>
+                <Text style={styles.reportSource}>
+                  {report.source === 'local_llm' ? '🖥️ Local' : report.source === 'cloud_llm' ? '☁️ Cloud' : '📄 Report'}
+                </Text>
+                <Text style={styles.loadText}>Tap to Load</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.actionContainer}>
         <TouchableOpacity 
@@ -585,6 +696,50 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     textAlign: 'center',
+  },
+  savedReportContainer: {
+    backgroundColor: colors.successLight,
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: colors.success,
+  },
+  savedReportTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.success,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  reportsList: {
+    maxHeight: 100,
+  },
+  reportCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 10,
+    minWidth: 120,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  reportDate: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  reportSource: {
+    fontSize: 11,
+    color: colors.textLight,
+    marginBottom: 4,
+  },
+  loadText: {
+    fontSize: 10,
+    color: colors.success,
+    fontWeight: '500',
   },
 });
 

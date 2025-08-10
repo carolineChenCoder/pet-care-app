@@ -1,0 +1,88 @@
+name: Build Pet Care Assistant APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🏗 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🏗 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🏗 Setup EAS
+      uses: expo/expo-github-action@v8
+      with:
+        eas-version: latest
+        token: ${{ secrets.EXPO_TOKEN }}
+
+    - name: 🚀 Build APK
+      run: |
+        eas build --platform android --profile preview --non-interactive --clear-cache
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    - name: 📱 Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          *.apk
+        body: |
+          # 🐾 Pet Care Assistant v${{ github.ref_name }}
+          
+          ## 📱 Download for Android
+          
+          **Download the APK below and install on your Android device**
+          
+          ## 🌍 International Features
+          - ✅ **Works Offline** - No internet required after installation
+          - ✅ **Multi-language** - English, Spanish, Chinese support
+          - ✅ **Global Emergency Contacts** - Country-specific vet numbers
+          - ✅ **Breed-specific Advice** - For dogs worldwide
+          - ✅ **Privacy Focused** - All data stays on your device
+          
+          ## 📲 Installation Instructions
+          
+          ### For Android:
+          1. **Download APK** file below
+          2. **Enable Unknown Sources**: Settings > Security > Install unknown apps
+          3. **Install APK** by tapping the downloaded file  
+          4. **Open App** and add your pet information
+          
+          ## 🩺 Features
+          - Smart symptom checker with severity assessment
+          - Comprehensive health reports by breed
+          - Emergency first aid procedures
+          - Pet poison helpline numbers
+          - Offline functionality
+          
+          ## 🆘 Support
+          
+          - **Issues**: [Report bugs](https://github.com/${{ github.repository }}/issues)
+          - **Questions**: Create a discussion
+          
+          ## ⚠️ Important
+          
+          This app provides general guidance only. Always consult a veterinarian for serious health concerns.
+          
+          ---
+          
+          **Share with friends worldwide** 🌍 - Send them this GitHub link!
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,7 +6,24 @@
       "Bash(npx expo export:*)",
       "Bash(npx expo publish:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(ollama pull:*)",
+      "Bash(find:*)",
+      "Bash(npx react-native start:*)",
+      "Bash(node:*)",
+      "Bash(npx expo start:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(eas:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(npm run build:android:*)",
+      "Bash(mv:*)",
+      "Bash(npm run build:preview:*)",
+      "WebFetch(domain:expo.dev)",
+      "Bash(git init:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

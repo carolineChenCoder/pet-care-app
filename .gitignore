@@ -66,6 +66,18 @@ yarn-error.log
 # testing
 /coverage
 
+# Environment variables - NEVER commit these!
+.env
+.env.local
+.env.production
+.env.staging
+
+# EAS Build secrets - NEVER commit these!
+android-service-account.json
+ios-distribution-certificate.p12
+*.mobileprovision
+credentials.json
+
 # Yarn
 .yarn/*
 !.yarn/patches

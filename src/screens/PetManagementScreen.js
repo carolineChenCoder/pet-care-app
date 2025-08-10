@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, FlatList } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import PetService from '../services/PetService';
 
-const PetProfileScreen = () => {
+const PetManagementScreen = () => {
   const { t } = useLanguage();
   const { colors } = useTheme();
   const [petService] = useState(new PetService());
@@ -158,7 +157,7 @@ const PetProfileScreen = () => {
       
       <View style={styles.petActions}>
         <TouchableOpacity 
-          style={[styles.actionButton, currentPet?.id === pet.id && styles.activeButton]}
+          style={styles.actionButton}
           onPress={() => handleSetCurrentPet(pet)}
           disabled={currentPet?.id === pet.id}
         >
@@ -532,9 +531,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 2,
   },
-  activeButton: {
-    backgroundColor: colors.success,
-  },
   editButton: {
     backgroundColor: colors.warning,
   },
@@ -563,4 +559,4 @@ const createStyles = (colors) => StyleSheet.create({
   },
 });
 
-export default PetProfileScreen;
+export default PetManagementScreen;

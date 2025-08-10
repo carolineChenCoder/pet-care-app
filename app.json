@@ -1,14 +1,50 @@
 {
   "expo": {
-    "name": "Pet Google",
-    "slug": "pet-google",
+    "name": "Pet Care Assistant",
+    "slug": "pet-care-assistant",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
-    "main": "index.js",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "main": "App.js",
+    "description": "AI-powered pet health assistant for symptom analysis and health reports",
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.petcare.assistant",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0"
+            },
+            "127.0.0.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0"
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "package": "com.petcare.assistant",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "privacy": "public",
+    "extra": {
+      "eas": {
+        "projectId": "68b9bf27-bcde-4666-ad45-6fb2055e356a"
+      }
+    }
   }
 }

@@ -1,0 +1,46 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E3F2FD;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F3E5F5;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="url(#bgGrad)"/>
+  
+  <!-- Center content -->
+  <g transform="translate(621, 1344)">
+    <!-- Large icon -->
+    <circle cx="0" cy="-200" r="120" fill="#4CAF50" opacity="0.9"/>
+    <path d="M-60,-210 C-60,-235 -30,-250 0,-235 C30,-250 60,-235 60,-210 C60,-185 0,-150 0,-150 C0,-150 -60,-185 -60,-210 Z" 
+          fill="white" opacity="0.9"/>
+    <rect x="-6" y="-240" width="12" height="80" fill="white" opacity="0.7"/>
+    <rect x="-40" y="-206" width="80" height="12" fill="white" opacity="0.7"/>
+    
+    <!-- App title -->
+    <text x="0" y="-50" text-anchor="middle" font-family="Arial, sans-serif" 
+          font-size="48" font-weight="bold" fill="#2196F3">
+      Pet Care Assistant
+    </text>
+    
+    <!-- Subtitle -->
+    <text x="0" y="20" text-anchor="middle" font-family="Arial, sans-serif" 
+          font-size="24" fill="#666">
+      AI-Powered Pet Health Companion
+    </text>
+    
+    <!-- Loading indicator -->
+    <g transform="translate(0, 150)">
+      <circle cx="-30" cy="0" r="8" fill="#4CAF50">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" begin="0s"/>
+      </circle>
+      <circle cx="0" cy="0" r="8" fill="#4CAF50">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" begin="0.33s"/>
+      </circle>
+      <circle cx="30" cy="0" r="8" fill="#4CAF50">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" begin="0.66s"/>
+      </circle>
+    </g>
+  </g>
+</svg>
