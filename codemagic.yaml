@@ -4,28 +4,30 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m1
     environment:
+      groups:
+        - expo_credentials
       vars:
         PACKAGE_NAME: "com.petcare.assistant"
-        EXPO_TOKEN: $EXPO_TOKEN
       node: 18.17.0
       npm: 9.6.7
     scripts:
       - name: Install dependencies
         script: |
           npm install
-      - name: Install EAS CLI
+      - name: Install Expo CLI
         script: |
-          npm install -g eas-cli
-      - name: Login to Expo
+          npm install -g @expo/cli
+      - name: Prebuild for React Native
         script: |
-          echo "Logging in to Expo..."
-          # Use environment variable for token if available
-      - name: Build APK with EAS
+          npx expo prebuild --platform android --clear
+      - name: Build APK with Gradle
         script: |
-          eas build --platform android --profile preview --non-interactive
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease
     artifacts:
-      - build/**/*.apk
-      - build/**/*.aab
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
     publishing:
       email:
         recipients:
