@@ -5,8 +5,8 @@ workflows:
     environment:
       groups:
         - expo_credentials
-      node: 18
-      npm: latest
+      node: 18.17.0
+      npm: 9.6.7
     scripts:
       - name: Install dependencies
         script: |
