@@ -3,8 +3,8 @@ workflows:
     name: Simple Expo APK Build
     max_build_duration: 60
     environment:
-      groups:
-        - expo_credentials
+      vars:
+        EXPO_TOKEN: $EXPO_TOKEN
       node: 18.17.0
       npm: 9.6.7
     scripts:
@@ -14,12 +14,12 @@ workflows:
       - name: Install Expo CLI and EAS
         script: |
           npm install -g @expo/cli eas-cli
-      - name: Expo Login
+      - name: Set Expo Token
         script: |
-          npx expo login -u $EXPO_USERNAME -p $EXPO_PASSWORD
+          echo "Using Expo token for authentication"
       - name: Try EAS Build
         script: |
-          npx eas build --platform android --profile preview --non-interactive --wait
+          EXPO_TOKEN=$EXPO_TOKEN npx eas build --platform android --profile preview --non-interactive --wait
     artifacts:
       - "*.apk"
       - "*.aab"
