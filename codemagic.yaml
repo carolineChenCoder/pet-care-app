@@ -1,0 +1,39 @@
+workflows:
+  react-native-android:
+    name: React Native Android Build
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      android_signing:
+        - keystore_reference
+      groups:
+        - expo_credentials
+      vars:
+        PACKAGE_NAME: "com.petcare.assistant"
+      node: 18.17.0
+      npm: 9.6.7
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Install Expo CLI
+        script: |
+          npm install -g @expo/cli
+      - name: Build with Expo
+        script: |
+          npx expo export --platform android
+      - name: Build APK with EAS
+        script: |
+          npx eas build --platform android --profile preview --non-interactive --no-wait
+    artifacts:
+      - build/**/*.apk
+      - build/**/*.aab
+    publishing:
+      email:
+        recipients:
+          - caroline@example.com
+        notify:
+          success: true
+          failure: false
