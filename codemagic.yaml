@@ -6,21 +6,23 @@ workflows:
     environment:
       vars:
         PACKAGE_NAME: "com.petcare.assistant"
+        EXPO_TOKEN: $EXPO_TOKEN
       node: 18.17.0
       npm: 9.6.7
     scripts:
       - name: Install dependencies
         script: |
           npm install
-      - name: Install Expo CLI
+      - name: Install EAS CLI
         script: |
-          npm install -g @expo/cli
-      - name: Build with Expo
+          npm install -g eas-cli
+      - name: Login to Expo
         script: |
-          npx expo export --platform android
+          echo "Logging in to Expo..."
+          # Use environment variable for token if available
       - name: Build APK with EAS
         script: |
-          npx eas build --platform android --profile preview --non-interactive --no-wait
+          eas build --platform android --profile preview --non-interactive
     artifacts:
       - build/**/*.apk
       - build/**/*.aab
